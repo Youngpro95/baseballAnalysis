@@ -6,6 +6,41 @@ import time
 from datetime import datetime, timedelta
 import os
 from bs4 import BeautifulSoup
+
+# MLB 팀 이름과 약어 매핑
+team_abbr = {
+    "Arizona Diamondbacks": "ARI",
+    "Atlanta Braves": "ATL",
+    "Baltimore Orioles": "BAL",
+    "Boston Red Sox": "BOS",
+    "Chicago White Sox": "CHW",
+    "Chicago Cubs": "CHC",
+    "Cincinnati Reds": "CIN",
+    "Cleveland Guardians": "CLE",
+    "Colorado Rockies": "COL",
+    "Detroit Tigers": "DET",
+    "Houston Astros": "HOU",
+    "Kansas City Royals": "KCR",
+    "Los Angeles Angels": "LAA",
+    "Los Angeles Dodgers": "LAD",
+    "Miami Marlins": "MIA",
+    "Milwaukee Brewers": "MIL",
+    "Minnesota Twins": "MIN",
+    "New York Yankees": "NYY",
+    "New York Mets": "NYM",
+    "Oakland Athletics": "OAK",
+    "Philadelphia Phillies": "PHI",
+    "Pittsburgh Pirates": "PIT",
+    "San Diego Padres": "SDP",
+    "San Francisco Giants": "SFG",
+    "Seattle Mariners": "SEA",
+    "St. Louis Cardinals": "STL",
+    "Tampa Bay Rays": "TBR",
+    "Texas Rangers": "TEX",
+    "Toronto Blue Jays": "TOR",
+    "Washington Nationals": "WSH"
+}
+
 # 경로 가져오기
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,12 +60,12 @@ driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
     # 크롤링할 웹 페이지 URL
+    today = datetime.now().strftime('%A, %B %d, %Y')
+    print(f"Today is: {today}")
     url = 'https://www.baseball-reference.com/leagues/MLB-schedule.shtml'
     driver.get(url)
 
     # 오늘 날짜 포맷 설정
-    today = datetime.now().strftime('%A, %B %d, %Y')
-    print(f"Today is: {today}")
 
     # class="section_content" 요소 찾기
     sections = driver.find_elements(By.CLASS_NAME, 'section_content')
@@ -51,6 +86,7 @@ try:
             h3_elements = div.find_elements(By.TAG_NAME, 'h3')
 
             for h3 in h3_elements:
+                # if today in h3.text or "Today's Games" in h3.text:
                 if today in h3.text or "Today's Games" in h3.text:
                     # 날짜가 맞는 경우, 해당 div의 p 요소들 찾기
                     p_elements = div.find_elements(By.TAG_NAME, 'p')
@@ -69,7 +105,19 @@ try:
                             game_time_korea = (game_time + timedelta(hours=13)).strftime("%I:%M %p")
 
                             away, home = teams_part.split(' @ ')
-                            game_line = f"{game_time_korea} Home : {home} Away : {away}"
+                            away_abbr = team_abbr.get(away, away)  # 약어로 변환
+                            home_abbr = team_abbr.get(home, home)  # 약어로 변환
+                            game_line = {
+                                "game_time": game_time_korea,
+                                "home": home,
+                                "home_abbr": home_abbr,
+                                "away": away,
+                                "away_abbr": away_abbr,
+                                "home_pitcher": "",
+                                "away_pitcher": "",
+                                "home_stats": "",
+                                "away_stats": ""
+                            }
                             game_lines.append(game_line)
 
                             # Preview 링크 추출
@@ -80,7 +128,7 @@ try:
                                 pass  # Preview 링크가 없는 경우 예외 처리
 
     # 모든 게임 정보를 출력
-    print('\n'.join(game_lines))
+    # print('\n'.join(game_lines))
 
     # Preview 링크 방문 및 HTML 소스 출력 후 내용 분석
     for link in preview_links:
@@ -108,6 +156,14 @@ try:
                         # all_sp_html에서 <a> 태그의 href 속성 값 추출
                         soup = BeautifulSoup(all_sp_html, 'html.parser')
                         links = [a['href'] for a in soup.select(f"#{all_sp_id} a[href]")]
+                        # 투수 이름을 추출하여 game_lines에 업데이트
+                        for link in links:
+                            pitcher_name = soup.find('a', href=link).text.strip()
+                            for game_line in game_lines:
+                                if game_line['home_abbr'] == last_part:
+                                    game_line['home_pitcher'] = pitcher_name
+                                elif game_line['away_abbr'] == last_part:
+                                    game_line['away_pitcher'] = pitcher_name
                         # pitcher_links 리스트에 추가
                         pitcher_links.extend(links)
                     except:
@@ -143,6 +199,7 @@ try:
 
         # 페이지 제목 추출
         page_title = soup_sp.title.text.strip() if soup_sp.title else 'No Title'
+        pitcher_name = page_title.split(' Pitching Stats')[0].strip()
 
         # id가 pitching_starter.2024인 tr 요소 찾기
         pitching_starter_tr = soup_sp.find('tr', id='pitching_starter.2024')
@@ -160,8 +217,17 @@ try:
 
                     if gs_team_value != 0:  # ZeroDivisionError 방지
                         win_rate = w_team_value / gs_team_value
-                        print(
-                            f"{page_title} - W_team: {w_team_value}, L_team: {l_team_value}, GS: {gs_team_value}, Win Rate: {win_rate:.3f}")
+                        pitcher_stats = {
+                            "W_team": w_team_value,
+                            "L_team": l_team_value,
+                            "GS": gs_team_value,
+                            "Win_rate": win_rate
+                        }
+                        for game_line in game_lines:
+                            if game_line['home_pitcher'] == pitcher_name:
+                                game_line['home_stats'] = pitcher_stats
+                            elif game_line['away_pitcher'] == pitcher_name:
+                                game_line['away_stats'] = pitcher_stats
                     else:
                         print(f"{page_title} - GS is zero, cannot calculate win rate for {sp_link}")
 
@@ -174,8 +240,10 @@ try:
         else:
             print(f"{page_title} - No pitching_starter.2024 row found in {sp_link}")
 
-    # id가 all_pitching_advanced인 요소 찾기
-
+        # 업데이트된 게임 정보 출력
+    for game_line in game_lines:
+        print(
+            f"{game_line['game_time']} Home: {game_line['home']} ({game_line['home_abbr']}) Away: {game_line['away']} ({game_line['away_abbr']}) - Home Pitcher: {game_line['home_pitcher']} Away Pitcher: {game_line['away_pitcher']} Home Stats: {game_line['home_stats']} Away Stats: {game_line['away_stats']}")
 
 
 
