@@ -44,15 +44,19 @@ try:
     for section in sections:
         # 각 section에서 div 요소들 찾기
         divs = section.find_elements(By.TAG_NAME, 'div')
+
         for div in divs:
+
             # 각 div에서 h3 요소 찾기
             h3_elements = div.find_elements(By.TAG_NAME, 'h3')
+
             for h3 in h3_elements:
-                if today in h3.text:
+                if today in h3.text or "Today's Games" in h3.text:
                     # 날짜가 맞는 경우, 해당 div의 p 요소들 찾기
                     p_elements = div.find_elements(By.TAG_NAME, 'p')
                     for p in p_elements:
                         game_info = p.text
+
                         if 'Preview' in game_info:
                             game_info = game_info.replace('Preview', '').strip()
                             time_part, teams_part = game_info.split(' ', 2)[:2], game_info.split(' ', 2)[2]
@@ -109,7 +113,7 @@ try:
                     except:
                         print(f"No element found with id: {all_sp_id}")
 
-    print(pitcher_links)
+
     # # 각 링크로 이동하여 footer no_hide_long 클래스가 있는 <a> 태그의 내용이 "Starting Pitching"인 링크들 출력
 
     for link_to_follow in pitcher_links:
