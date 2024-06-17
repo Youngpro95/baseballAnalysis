@@ -17,10 +17,11 @@ chrome_options = Options()
 # chrome_options.add_argument('--headless')  # 브라우저를 화면에 띄우지 않고 실행
 
 # # ChromeDriver 서비스 설정
-# service = Service(chrome_driver_path)
+service = Service(chrome_driver_path)
 
 # WebDriver 객체 생성
-driver = webdriver.Chrome(executable_path=chrome_driver_path, options=chrome_options)
+driver = webdriver.Chrome(service=service, options=chrome_options)
+# driver = webdriver.Chrome(executable_path=chrome_driver_path, options=chrome_options)
 
 try:
     # 크롤링할 웹 페이지 URL
@@ -38,6 +39,7 @@ try:
     preview_links = []  # Preview 링크를 모으기 위한 리스트
     pitcher_links = []  # Pitcher 링크를 모으기 위한 리스트
     pitcher_starting_links = []  # Pitcher 링크를 모으기 위한 리스트
+    starting_pitching_links = [] # Starting Pitcher 링크를 모으기 위한 리스트
 
     for section in sections:
         # 각 section에서 div 요소들 찾기
@@ -117,7 +119,7 @@ try:
 
         # BeautifulSoup으로 HTML 파싱
         soup = BeautifulSoup(all_pitching_advanced_html, 'html.parser')
-        starting_pitching_links = []
+
         footer_links = soup.find_all('div',class_='footer no_hide_long')
 
 
@@ -129,8 +131,44 @@ try:
                     starting_pitching_links.append("https://www.baseball-reference.com"+link['href'])
 
             # 찾은 링크들 출력
-        for sp_link in starting_pitching_links:
-            print(sp_link)
+
+        # 각 Starting Pitching 링크로 이동하여 필요한 정보 추출
+    for sp_link in starting_pitching_links:
+        driver.get(sp_link)
+        soup_sp = BeautifulSoup(driver.page_source, 'html.parser')
+
+        # 페이지 제목 추출
+        page_title = soup_sp.title.text.strip() if soup_sp.title else 'No Title'
+
+        # id가 pitching_starter.2024인 tr 요소 찾기
+        pitching_starter_tr = soup_sp.find('tr', id='pitching_starter.2024')
+        if pitching_starter_tr:
+            # data-stat가 W_team, L_team, GS인 값 추출
+            w_team_data = pitching_starter_tr.find('td', {'data-stat': 'W_team'})
+            l_team_data = pitching_starter_tr.find('td', {'data-stat': 'L_team'})
+            gs_team_data = pitching_starter_tr.find('td', {'data-stat': 'GS'})
+
+            if w_team_data and l_team_data and gs_team_data:
+                try:
+                    w_team_value = int(w_team_data.text)
+                    l_team_value = int(l_team_data.text)
+                    gs_team_value = int(gs_team_data.text)
+
+                    if gs_team_value != 0:  # ZeroDivisionError 방지
+                        win_rate = w_team_value / gs_team_value
+                        print(
+                            f"{page_title} - W_team: {w_team_value}, L_team: {l_team_value}, GS: {gs_team_value}, Win Rate: {win_rate:.3f}")
+                    else:
+                        print(f"{page_title} - GS is zero, cannot calculate win rate for {sp_link}")
+
+                except ValueError:
+                    print(
+                        f"{page_title} - Invalid data found in {sp_link}: W_team = {w_team_data.text}, L_team = {l_team_data.text}, GS = {gs_team_data.text}")
+            else:
+                print(f"{page_title} - Not all required data found in {sp_link}")
+
+        else:
+            print(f"{page_title} - No pitching_starter.2024 row found in {sp_link}")
 
     # id가 all_pitching_advanced인 요소 찾기
 
