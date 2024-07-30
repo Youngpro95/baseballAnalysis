@@ -101,7 +101,9 @@ try:
                             game_info = game_info.replace('Preview', '').strip()
                             time_part, teams_part = game_info.split(' ', 2)[:2], game_info.split(' ', 2)[2]
                             game_time_str = ' '.join(time_part)
-
+                            # 'TBD' 체크
+                            if time_part[0] == 'TBD':
+                                continue  # 'TBD'인 경우 반복 건너뛰기
                             # 원래 시간 문자열을 datetime 객체로 변환
                             game_time = datetime.strptime(game_time_str, "%I:%M %p")
 
