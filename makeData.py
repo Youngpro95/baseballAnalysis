@@ -1,11 +1,16 @@
-import os
+from pymongo import MongoClient
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import time
 import platform
-import json
 from datetime import datetime, timedelta
+import os
+
+# MongoDB 클라이언트 설정
+client = MongoClient('mongodb://localhost:27017/')  # 로컬 MongoDB 서버에 연결
+db = client['baseball_db']  # 사용할 데이터베이스 이름
+collection = db['games']  # 사용할 컬렉션 이름
 
 # 크롬 드라이버 설정 (파일 경로는 각자에 맞게 조정)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -104,12 +109,10 @@ for section in sections:
         if games:
             game_list_data.append({date_str: games})
 
-# game_list_data를 JSON 형식으로 schedule_data.py에 저장
-schedule_data_file = os.path.join(current_dir, 'schedule_data.py')
-with open(schedule_data_file, 'w', encoding='utf-8') as file:
-    file.write(f"gameListData = {json.dumps(game_list_data, indent=4)}")
+# MongoDB에 데이터 삽입
+collection.insert_many(game_list_data)
 
 # WebDriver 종료
 driver.quit()
 
-print(f"Game data successfully saved to {schedule_data_file}")
+print("Game data successfully saved to MongoDB.")
